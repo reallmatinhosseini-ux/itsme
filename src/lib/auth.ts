@@ -14,22 +14,11 @@ interface AuthRow {
   secret: string;
 }
 
-// Hosted deployments (no writable disk) can set the passcode via env instead of the DB.
-const ENV_PASSCODE = process.env.MISSION_PASSCODE?.trim() || null;
-const ENV_SECRET = process.env.AUTH_SECRET?.trim() || ENV_PASSCODE || "";
-
 export async function getAuth(): Promise<AuthRow | null> {
   await ensureSchema();
   const r = await sqlClient.execute("SELECT hash, salt, secret FROM auth WHERE id = 1");
   const row = r.rows[0];
-  if (row) return { hash: row.hash as string, salt: row.salt as string, secret: row.secret as string };
-  // Fallback to a passcode supplied through the environment (e.g. on Vercel).
-  if (ENV_PASSCODE) {
-    const salt = "env";
-    const hash = crypto.scryptSync(ENV_PASSCODE, salt, 32).toString("hex");
-    return { hash, salt, secret: ENV_SECRET || hash };
-  }
-  return null;
+  return row ? { hash: row.hash as string, salt: row.salt as string, secret: row.secret as string } : null;
 }
 
 export async function hasPasscode(): Promise<boolean> {
