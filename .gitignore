@@ -1,0 +1,21 @@
+# dependencies
+node_modules
+
+# next.js
+.next
+next-env.d.ts
+
+# typescript
+tsconfig.tsbuildinfo
+
+# local data — personal financial database, uploads (never commit)
+data/*.db*
+data/uploads
+
+# secrets / local env
+.env.local
+.env*.local
+
+# local tooling
+.claude
+.DS_Store
