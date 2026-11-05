@@ -5,8 +5,8 @@ import { FanChart, Histogram, Legend } from "@/components/charts";
 import { ScenarioEditor } from "@/components/forms/settings-forms";
 import { prob, usd, compactUsd, pct } from "@/lib/format";
 
-export default function Planning() {
-  const m = loadMission();
+export default async function Planning() {
+  const m = await loadMission();
   return (
     <>
       <PageHeader
@@ -52,7 +52,7 @@ function Loading({ label, h }: { label: string; h: number }) {
 
 async function ScenarioTable() {
   await yieldToStream();
-  const m = loadMission();
+  const m = await loadMission();
   const rows = scenarioProjections(m);
   const tpl6 = m.settings.templates.find((t) => t.size === 6000);
   const startCap = m.wealth.realizedNetWealth;
@@ -108,7 +108,7 @@ async function ScenarioTable() {
 
 async function Distribution() {
   await yieldToStream();
-  const m = loadMission();
+  const m = await loadMission();
   const live = liveProjection(m);
   const base = scenarioProjections(m).find((r) => r.key === "base")!;
   const r = live.result ?? base.result;
@@ -137,7 +137,7 @@ async function Distribution() {
 
 async function Sensitivity() {
   await yieldToStream();
-  const m = loadMission();
+  const m = await loadMission();
   const s = sensitivity(m);
   const base = s.rows[0].result;
   const dbl = s.rows.find((r) => r.label === "Always max size")?.result;

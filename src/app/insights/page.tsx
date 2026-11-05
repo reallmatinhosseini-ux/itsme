@@ -9,7 +9,7 @@ import { fmtDate, pct, rr, signedUsd } from "@/lib/format";
 
 export default async function Insights({ searchParams }: { searchParams: Promise<{ period?: string; key?: string }> }) {
   const sp = await searchParams;
-  const m = loadMission();
+  const m = await loadMission();
   const period = sp.period === "month" ? "month" : "week";
   const fn = period === "week" ? weekKey : monthKey;
   const keys = [...new Set([...m.closed.map((t) => fn(t.day)), fn(m.today)])].sort().reverse();

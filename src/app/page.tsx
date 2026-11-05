@@ -11,8 +11,8 @@ export const dynamic = "force-dynamic";
 
 const STAGE: Record<string, string> = { phase1: "Step 1", phase2: "Step 2", funded: "Funded", failed: "Failed" };
 
-export default function Overview() {
-  const m = loadMission();
+export default async function Overview() {
+  const m = await loadMission();
   if (!m.settings.setupCompleted) redirect("/setup");
   const { wealth, today } = m;
   const debt = wealth.debts.sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
@@ -55,7 +55,7 @@ export default function Overview() {
     : null;
 
   // Daily tracker summary for this week (Mon–Sun).
-  const trackMap = new Map(db.select().from(schema.dailyTrack).all().map((r) => [r.date, r]));
+  const trackMap = new Map((await db.select().from(schema.dailyTrack).all()).map((r) => [r.date, r]));
   const dow = new Date(today + "T00:00").getDay();
   const monday = addDays(today, -((dow + 6) % 7));
   const week = Array.from({ length: 7 }, (_, i) => {

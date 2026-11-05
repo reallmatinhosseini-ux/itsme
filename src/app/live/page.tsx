@@ -8,8 +8,8 @@ import { TrendChart } from "@/components/trend-chart";
 import { PLAN, liveSchedule, liveGrowthChart, liveTarget } from "@/lib/growth-plan";
 import { signedUsd, usd } from "@/lib/format";
 
-export default function LiveAccount() {
-  const m = loadMission();
+export default async function LiveAccount() {
+  const m = await loadMission();
   if (!m.settings.setupCompleted) redirect("/setup");
 
   const live = m.states.filter((s) => !s.isProp && !s.account.archived).sort((a, b) => a.account.createdAt.localeCompare(b.account.createdAt))[0];

@@ -11,8 +11,8 @@ const LEDGER_LABEL: Record<string, string> = {
   fee: "Fee", refund: "Refund", expense: "Expense", income: "Income", transfer_to_personal: "→ Personal", transfer_from_personal: "← Personal",
 };
 
-export default function Accounts() {
-  const m = loadMission();
+export default async function Accounts() {
+  const m = await loadMission();
   const live = m.states.filter((s) => !s.account.archived && s.account.stage !== "failed");
   const personal = m.states.filter((s) => !s.isProp);
   const exp = m.exposure;

@@ -10,8 +10,8 @@ import { fmtDate, prob, usd } from "@/lib/format";
 const d = (s: string | null | undefined) =>
   s ? fmtDate(s, { month: "short", day: "numeric", year: s.slice(0, 4) !== "2026" ? "numeric" : undefined }) : "—";
 
-export default function Plan() {
-  const m = loadMission();
+export default async function Plan() {
+  const m = await loadMission();
   if (!m.settings.setupCompleted) redirect("/setup");
   const { roadmap: r, settings: s, wealth, clock, strategy } = m;
   const S = strategy.plan;

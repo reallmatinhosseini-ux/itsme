@@ -11,7 +11,7 @@ import { fmtDate, pct, signedPct, signedUsd, stageLabel, usd, compactUsd } from 
 
 export default async function Challenges({ searchParams }: { searchParams: Promise<{ view?: string }> }) {
   const { view = "active" } = await searchParams;
-  const m = loadMission();
+  const m = await loadMission();
   const props = m.states.filter((s) => s.isProp);
   const shown = props.filter((s) => (view === "archived" ? s.account.archived : view === "all" ? true : !s.account.archived));
   const fees = props.reduce((s, x) => s + x.account.purchasePrice, 0);
@@ -89,7 +89,7 @@ export default async function Challenges({ searchParams }: { searchParams: Promi
   );
 }
 
-function ChallengeCard({ s, m }: { s: AccountState; m: ReturnType<typeof loadMission> }) {
+function ChallengeCard({ s, m }: { s: AccountState; m: Awaited<ReturnType<typeof loadMission>> }) {
   const a = s.account;
   const phaseStatus = (p: 1 | 2) => {
     const passed = p === 1 ? a.phase1PassedAt : a.phase2PassedAt;

@@ -11,8 +11,8 @@ const LABEL: Record<string, string> = {
   fee: "Challenge fee", refund: "Refund", expense: "Expense", income: "Income", transfer_to_personal: "To personal account", transfer_from_personal: "From personal account", debt_payment: "Debt payment",
 };
 
-export default function Money() {
-  const m = loadMission();
+export default async function Money() {
+  const m = await loadMission();
   if (!m.settings.setupCompleted) redirect("/setup");
   const { wealth } = m;
   const personal = m.states.filter((s) => !s.isProp && !s.account.archived).map((s) => ({ id: s.account.id, name: s.account.name }));

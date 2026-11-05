@@ -7,12 +7,12 @@ import { DailyTracker, type Day } from "@/components/daily-tracker";
 
 export const dynamic = "force-dynamic";
 
-export default function Tracker() {
-  const m = loadMission();
+export default async function Tracker() {
+  const m = await loadMission();
   if (!m.settings.setupCompleted) redirect("/setup");
   const today = m.today;
 
-  const rows = db.select().from(schema.dailyTrack).all();
+  const rows = await db.select().from(schema.dailyTrack).all();
   const map = new Map(rows.map((r) => [r.date, r]));
   const mk = (date: string): Day => {
     const r = map.get(date);

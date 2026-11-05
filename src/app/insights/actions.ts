@@ -16,7 +16,7 @@ Rules:
 - If the data is too thin to say anything, say so plainly.`;
 
 export async function generateNarrative(period: "week" | "month", key: string): Promise<{ ok: boolean; text?: string; error?: string }> {
-  const m = loadMission();
+  const m = await loadMission();
   const fn = period === "week" ? weekKey : monthKey;
   const report = periodReport(period, key, m.closed, m.scores, onTrackText(m), m.settings.risk.maxTradesPerDay);
   const payload = {

@@ -11,8 +11,8 @@ import { fmtDate, usd } from "@/lib/format";
 const d = (s: string | null | undefined) =>
   s ? fmtDate(s, { month: "short", day: "numeric", year: s.slice(0, 4) !== "2026" ? "numeric" : undefined }) : "—";
 
-export default function DebtTracker() {
-  const m = loadMission();
+export default async function DebtTracker() {
+  const m = await loadMission();
   if (!m.settings.setupCompleted) redirect("/setup");
   const { wealth, today } = m;
   const debt = wealth.debts.sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];

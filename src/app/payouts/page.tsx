@@ -8,8 +8,8 @@ import { TimeSeries } from "@/components/charts";
 import { PLAN, liveTarget } from "@/lib/growth-plan";
 import { fmtDate, prob, usd, usd2 } from "@/lib/format";
 
-export default function Payouts() {
-  const m = loadMission();
+export default async function Payouts() {
+  const m = await loadMission();
   const funded = m.states.filter((s) => s.isProp && s.account.stage === "funded" && !s.account.archived);
   const personal = m.states.filter((s) => !s.isProp && !s.account.archived).map((s) => ({ id: s.account.id, name: s.account.name }));
   const active = m.states.filter((s) => s.isProp && !s.account.archived && s.account.stage !== "failed");

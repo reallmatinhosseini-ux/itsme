@@ -10,8 +10,8 @@ import { daysBetween } from "@/lib/engine/util";
 
 type Status = "done" | "current" | "locked";
 
-export default function Mission() {
-  const m = loadMission();
+export default async function Mission() {
+  const m = await loadMission();
   const { settings: s, states, payouts, wealth, clock } = m;
   const props = states.filter((x) => x.isProp);
   const small = props.find((x) => x.account.size <= 10_000);
@@ -206,7 +206,7 @@ export default function Mission() {
 
 async function RequiredEdge() {
   await yieldToStream();
-  const m = loadMission();
+  const m = await loadMission();
   const rows = requiredEdge(m);
   const sc = m.settings.scenarios;
   return (

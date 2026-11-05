@@ -7,8 +7,8 @@ import { AlertList } from "@/components/blocks";
 import { CountBars, TimeSeries } from "@/components/charts";
 import { pct, signedUsd, usd, fmtDate } from "@/lib/format";
 
-export default function Risk() {
-  const m = loadMission();
+export default async function Risk() {
+  const m = await loadMission();
   const R = m.settings.risk;
   const live = m.states.filter((s) => !s.account.archived && s.account.stage !== "failed");
   const todays = m.trades.filter((t) => dayKey(t.openedAt) === m.today);

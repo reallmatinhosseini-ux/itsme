@@ -8,12 +8,12 @@ export async function middleware(req: NextRequest) {
   if (OPEN.some((p) => pathname === p || pathname.startsWith(p))) return NextResponse.next();
 
   const local = isLocalHost(req.headers.get("host"));
-  if (!hasPasscode()) {
+  if (!(await hasPasscode())) {
     // No passcode yet: this computer only. Other devices see the lock screen explaining how to enable access.
     if (local) return NextResponse.next();
     return redirect(req, "/login?locked=1");
   }
-  if (isValidSession(req.cookies.get(COOKIE)?.value)) return NextResponse.next();
+  if (await isValidSession(req.cookies.get(COOKIE)?.value)) return NextResponse.next();
   return redirect(req, "/login");
 }
 

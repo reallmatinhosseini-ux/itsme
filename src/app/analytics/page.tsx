@@ -8,7 +8,7 @@ import { fmtDate, pct, rr, signedUsd, usd } from "@/lib/format";
 
 export default async function Analytics({ searchParams }: { searchParams: Promise<{ account?: string; unit?: string }> }) {
   const sp = await searchParams;
-  const m = loadMission();
+  const m = await loadMission();
   const unitR = sp.unit !== "usd";
   const trades = sp.account ? m.trades.filter((t) => String(t.accountId) === sp.account) : m.trades;
   const closed = closedTrades(trades);

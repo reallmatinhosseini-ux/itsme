@@ -1,10 +1,11 @@
-import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
 import fs from "node:fs";
 import path from "node:path";
 import * as schema from "./schema";
 
-const DATA_DIR = process.env.MISSION_DATA_DIR ?? path.join(process.cwd(), "data");
+// On Vercel (serverless, read-only FS) fall back to /tmp when no cloud DB is configured.
+const DATA_DIR = process.env.MISSION_DATA_DIR ?? (process.env.VERCEL ? "/tmp/mission-data" : path.join(process.cwd(), "data"));
 export const UPLOAD_DIR = path.join(DATA_DIR, "uploads");
 
 const DDL = `
@@ -64,21 +65,23 @@ CREATE TABLE IF NOT EXISTS daily_track (
 );
 `;
 
-function open() {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  const sqlite = new Database(path.join(DATA_DIR, "mission.db"));
-  sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
-  sqlite.exec(DDL);
-  // Additive migrations for databases created by earlier versions.
-  const ledgerCols = (sqlite.prepare("PRAGMA table_info(ledger)").all() as { name: string }[]).map((c) => c.name);
-  if (!ledgerCols.includes("debt_id")) sqlite.exec("ALTER TABLE ledger ADD COLUMN debt_id TEXT");
-  const tradeCols = (sqlite.prepare("PRAGMA table_info(trades)").all() as { name: string }[]).map((c) => c.name);
-  if (!tradeCols.includes("grade")) sqlite.exec("ALTER TABLE trades ADD COLUMN grade TEXT");
-  return drizzle(sqlite, { schema });
-}
+// Cloud SQLite (Turso) when configured; otherwise a local file (./data in dev, /tmp on Vercel).
+const url = process.env.TURSO_DATABASE_URL ?? `file:${path.join(DATA_DIR, "mission.db")}`;
+if (url.startsWith("file:")) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-// Reuse one connection across hot reloads in dev.
-const g = globalThis as unknown as { __missionDb?: ReturnType<typeof open> };
-export const db = g.__missionDb ?? (g.__missionDb = open());
+export const sqlClient = createClient({ url, authToken: process.env.TURSO_AUTH_TOKEN });
+export const db = drizzle(sqlClient, { schema });
+
+// Create tables and apply additive migrations exactly once per process.
+const g = globalThis as unknown as { __missionReady?: Promise<void> };
+export function ensureSchema(): Promise<void> {
+  return (g.__missionReady ??= (async () => {
+    if (url.startsWith("file:")) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+    await sqlClient.executeMultiple(DDL);
+    const ledger = await sqlClient.execute("PRAGMA table_info(ledger)");
+    if (!ledger.rows.some((c) => c.name === "debt_id")) await sqlClient.execute("ALTER TABLE ledger ADD COLUMN debt_id TEXT");
+    const trades = await sqlClient.execute("PRAGMA table_info(trades)");
+    if (!trades.rows.some((c) => c.name === "grade")) await sqlClient.execute("ALTER TABLE trades ADD COLUMN grade TEXT");
+  })());
+}
 export { schema };

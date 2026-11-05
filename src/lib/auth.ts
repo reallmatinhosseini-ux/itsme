@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { db } from "@/db/connection";
+import { sqlClient, ensureSchema } from "@/db/connection";
 
 /**
  * Single-user passcode stored as a scrypt hash in the database.
@@ -14,44 +14,59 @@ interface AuthRow {
   secret: string;
 }
 
-const raw = () => db.$client;
+// Hosted deployments (no writable disk) can set the passcode via env instead of the DB.
+const ENV_PASSCODE = process.env.MISSION_PASSCODE?.trim() || null;
+const ENV_SECRET = process.env.AUTH_SECRET?.trim() || ENV_PASSCODE || "";
 
-export function getAuth(): AuthRow | null {
-  return (raw().prepare("SELECT hash, salt, secret FROM auth WHERE id = 1").get() as AuthRow | undefined) ?? null;
+export async function getAuth(): Promise<AuthRow | null> {
+  await ensureSchema();
+  const r = await sqlClient.execute("SELECT hash, salt, secret FROM auth WHERE id = 1");
+  const row = r.rows[0];
+  if (row) return { hash: row.hash as string, salt: row.salt as string, secret: row.secret as string };
+  // Fallback to a passcode supplied through the environment (e.g. on Vercel).
+  if (ENV_PASSCODE) {
+    const salt = "env";
+    const hash = crypto.scryptSync(ENV_PASSCODE, salt, 32).toString("hex");
+    return { hash, salt, secret: ENV_SECRET || hash };
+  }
+  return null;
 }
 
-export function hasPasscode(): boolean {
-  return getAuth() != null;
+export async function hasPasscode(): Promise<boolean> {
+  return (await getAuth()) != null;
 }
 
-export function setPasscode(passcode: string) {
+export async function setPasscode(passcode: string): Promise<void> {
+  await ensureSchema();
   const salt = crypto.randomBytes(16).toString("hex");
   const hash = crypto.scryptSync(passcode, salt, 32).toString("hex");
   const secret = crypto.randomBytes(32).toString("hex");
-  raw()
-    .prepare("INSERT INTO auth (id, hash, salt, secret, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET hash = excluded.hash, salt = excluded.salt, secret = excluded.secret, updated_at = excluded.updated_at")
-    .run(hash, salt, secret, new Date().toISOString());
+  await sqlClient.execute({
+    sql: "INSERT INTO auth (id, hash, salt, secret, updated_at) VALUES (1, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET hash = excluded.hash, salt = excluded.salt, secret = excluded.secret, updated_at = excluded.updated_at",
+    args: [hash, salt, secret, new Date().toISOString()],
+  });
 }
 
-export function clearPasscode() {
-  raw().prepare("DELETE FROM auth WHERE id = 1").run();
+export async function clearPasscode(): Promise<void> {
+  await ensureSchema();
+  await sqlClient.execute("DELETE FROM auth WHERE id = 1");
 }
 
-export function verifyPasscode(passcode: string): boolean {
-  const a = getAuth();
+export async function verifyPasscode(passcode: string): Promise<boolean> {
+  const a = await getAuth();
   if (!a) return false;
   const test = crypto.scryptSync(passcode, a.salt, 32);
   return crypto.timingSafeEqual(test, Buffer.from(a.hash, "hex"));
 }
 
 /** Session token changes whenever the passcode changes, signing every device out. */
-export function sessionToken(): string | null {
-  const a = getAuth();
+export async function sessionToken(): Promise<string | null> {
+  const a = await getAuth();
   return a ? crypto.createHmac("sha256", a.secret).update(a.hash).digest("hex") : null;
 }
 
-export function isValidSession(cookie: string | undefined): boolean {
-  const t = sessionToken();
+export async function isValidSession(cookie: string | undefined): Promise<boolean> {
+  const t = await sessionToken();
   if (!t || !cookie || cookie.length !== t.length) return false;
   return crypto.timingSafeEqual(Buffer.from(cookie), Buffer.from(t));
 }

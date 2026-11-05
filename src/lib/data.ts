@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { db, schema } from "@/db";
+import { ensureSchema } from "@/db/connection";
 import { defaultSettings, settingsSchema, type Settings } from "./settings";
 import { accountState, type AccountState } from "./engine/accounts";
 import { closedTrades, tradeStats } from "./engine/stats";
@@ -26,8 +27,9 @@ export function nowLocal(): string {
   return `${dayKey(d)}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-export function getSettings(): Settings {
-  const row = db.select().from(schema.settings).all()[0];
+export async function getSettings(): Promise<Settings> {
+  await ensureSchema();
+  const row = (await db.select().from(schema.settings).all())[0];
   if (!row) return defaultSettings();
   const parsed = settingsSchema.safeParse(JSON.parse(row.json));
   if (!parsed.success) return defaultSettings();
@@ -37,24 +39,26 @@ export function getSettings(): Settings {
   return parsed.data;
 }
 
-export function saveSettings(s: Settings) {
+export async function saveSettings(s: Settings): Promise<void> {
+  await ensureSchema();
   const json = JSON.stringify(settingsSchema.parse(s));
-  db.insert(schema.settings)
+  await db.insert(schema.settings)
     .values({ id: 1, json, updatedAt: new Date().toISOString() })
     .onConflictDoUpdate({ target: schema.settings.id, set: { json, updatedAt: new Date().toISOString() } })
     .run();
 }
 
 /** Everything the UI needs, computed once per request. */
-export const loadMission = cache(() => {
-  const settings = getSettings();
+export const loadMission = cache(async () => {
+  await ensureSchema();
+  const settings = await getSettings();
   const t = today();
-  const accounts = db.select().from(schema.accounts).all();
-  const trades = db.select().from(schema.trades).all();
-  const events = db.select().from(schema.balanceEvents).all();
-  const payouts = db.select().from(schema.payouts).all();
-  const ledger = db.select().from(schema.ledger).all();
-  const logs = db.select().from(schema.dailyLogs).all();
+  const accounts = await db.select().from(schema.accounts).all();
+  const trades = await db.select().from(schema.trades).all();
+  const events = await db.select().from(schema.balanceEvents).all();
+  const payouts = await db.select().from(schema.payouts).all();
+  const ledger = await db.select().from(schema.ledger).all();
+  const logs = await db.select().from(schema.dailyLogs).all();
 
   const states = accounts.map((a) => accountState(a, trades, events, payouts, ledger, settings, t));
   const closed = closedTrades(trades);
@@ -85,7 +89,7 @@ export const loadMission = cache(() => {
   return { strategy, roadmap, streak, settings, today: t, accounts, trades, events, payouts, ledger, logs, states, closed, stats, wealth, clock, timeline, scores, avgScore, alerts, exposure: exp, gate, todayLog, sizeOf };
 });
 
-export type Mission = ReturnType<typeof loadMission>;
+export type Mission = Awaited<ReturnType<typeof loadMission>>;
 
 export function actionsFor(m: Mission, probability: number | null) {
   return nextActions({ settings: m.settings, states: m.states, stats: m.stats, alerts: m.alerts, probability, clock: m.clock, gate: m.gate, todayLog: m.todayLog, today: m.today, wealth: m.wealth, debtRepaidBy: m.strategy.plan.debtFree?.p90 ? fmtDate(m.strategy.plan.debtFree.p90) : null });

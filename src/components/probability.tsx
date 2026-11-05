@@ -6,7 +6,7 @@ import { prob, usd, compactUsd } from "@/lib/format";
 /** Probability of Success. Shows "Insufficient data" rather than a fabricated number. */
 export async function ProbabilityCard({ detailed = false }: { detailed?: boolean }) {
   await yieldToStream();
-  const m = loadMission();
+  const m = await loadMission();
   const live = liveProjection(m);
   const scenarios = scenarioProjections(m);
   const need = m.settings.simulation.minTradesForMonteCarlo;

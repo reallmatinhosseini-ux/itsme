@@ -13,9 +13,9 @@ function lanAddress(): string | null {
 }
 
 export default async function Settings() {
-  const m = loadMission();
+  const m = await loadMission();
   const s = m.settings;
-  const has = hasPasscode();
+  const has = await hasPasscode();
   const host = (await headers()).get("host");
   const port = host?.split(":")[1] ?? "3100";
   const ip = lanAddress();

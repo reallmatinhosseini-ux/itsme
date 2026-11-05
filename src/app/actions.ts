@@ -81,23 +81,23 @@ export async function saveAccount(_: ActionState, form: FormData): Promise<Actio
     const { rulesVerified, ...rest } = v;
     const values = { ...rest, rulesVerifiedAt: rulesVerified ? today() : null, deadline: v.deadline ?? null, notes: v.notes ?? null };
     if (id) {
-      const prev = db.select().from(schema.accounts).where(eq(schema.accounts.id, id)).get();
+      const prev = await db.select().from(schema.accounts).where(eq(schema.accounts.id, id)).get();
       if (!prev) throw new Error("Account not found");
-      db.update(schema.accounts)
+      await db.update(schema.accounts)
         .set({ ...values, stage: prev.stage, rulesVerifiedAt: rulesVerified ? prev.rulesVerifiedAt ?? today() : null })
         .where(eq(schema.accounts.id, id))
         .run();
       return done("Account updated");
     }
-    const created = db
+    const created = await db
       .insert(schema.accounts)
       .values({ ...values, stage: v.kind === "personal" ? "live" : v.stage, stageStartedAt: v.startDate, createdAt: new Date().toISOString() })
       .returning()
       .get();
     if (v.kind === "prop" && v.purchasePrice > 0)
-      db.insert(schema.ledger).values({ date: v.startDate, type: "fee", amount: v.purchasePrice, accountId: created.id, note: `${v.firm} $${v.size.toLocaleString()} challenge fee` }).run();
+      await db.insert(schema.ledger).values({ date: v.startDate, type: "fee", amount: v.purchasePrice, accountId: created.id, note: `${v.firm} $${v.size.toLocaleString()} challenge fee` }).run();
     if (v.kind === "personal")
-      db.insert(schema.ledger).values({ date: v.startDate, type: "transfer_to_personal", amount: v.size, accountId: created.id, note: "Initial deposit" }).run();
+      await db.insert(schema.ledger).values({ date: v.startDate, type: "transfer_to_personal", amount: v.size, accountId: created.id, note: "Initial deposit" }).run();
     return done("Account created");
   } catch (e) {
     return fail(e);
@@ -105,7 +105,7 @@ export async function saveAccount(_: ActionState, form: FormData): Promise<Actio
 }
 
 export async function setStage(id: number, stage: "phase1" | "phase2" | "funded" | "failed", reason?: string) {
-  const a = db.select().from(schema.accounts).where(eq(schema.accounts.id, id)).get();
+  const a = await db.select().from(schema.accounts).where(eq(schema.accounts.id, id)).get();
   if (!a) return;
   const t = today();
   const patch: Partial<typeof schema.accounts.$inferInsert> = { stage, stageStartedAt: t };
@@ -116,21 +116,21 @@ export async function setStage(id: number, stage: "phase1" | "phase2" | "funded"
     patch.failReason = reason ?? "Rule breach";
     patch.stageStartedAt = a.stageStartedAt;
   }
-  db.update(schema.accounts).set(patch).where(eq(schema.accounts.id, id)).run();
+  await db.update(schema.accounts).set(patch).where(eq(schema.accounts.id, id)).run();
   revalidatePath("/", "layout");
 }
 
 export async function setArchived(id: number, archived: boolean) {
-  db.update(schema.accounts).set({ archived }).where(eq(schema.accounts.id, id)).run();
+  await db.update(schema.accounts).set({ archived }).where(eq(schema.accounts.id, id)).run();
   revalidatePath("/", "layout");
 }
 
 export async function deleteAccount(id: number) {
-  db.delete(schema.trades).where(eq(schema.trades.accountId, id)).run();
-  db.delete(schema.balanceEvents).where(eq(schema.balanceEvents.accountId, id)).run();
-  db.delete(schema.payouts).where(eq(schema.payouts.accountId, id)).run();
-  db.delete(schema.ledger).where(eq(schema.ledger.accountId, id)).run();
-  db.delete(schema.accounts).where(eq(schema.accounts.id, id)).run();
+  await db.delete(schema.trades).where(eq(schema.trades.accountId, id)).run();
+  await db.delete(schema.balanceEvents).where(eq(schema.balanceEvents.accountId, id)).run();
+  await db.delete(schema.payouts).where(eq(schema.payouts.accountId, id)).run();
+  await db.delete(schema.ledger).where(eq(schema.ledger.accountId, id)).run();
+  await db.delete(schema.accounts).where(eq(schema.accounts.id, id)).run();
   revalidatePath("/", "layout");
 }
 
@@ -145,9 +145,9 @@ const eventSchema = z.object({
 export async function addBalanceEvent(_: ActionState, form: FormData): Promise<ActionState> {
   try {
     const v = eventSchema.parse(fd(form));
-    const a = db.select().from(schema.accounts).where(eq(schema.accounts.id, v.accountId)).get();
+    const a = await db.select().from(schema.accounts).where(eq(schema.accounts.id, v.accountId)).get();
     if (!a) throw new Error("Account not found");
-    db.insert(schema.balanceEvents).values({ ...v, phase: a.stage, note: v.note ?? null }).run();
+    await db.insert(schema.balanceEvents).values({ ...v, phase: a.stage, note: v.note ?? null }).run();
     return done("Adjustment recorded");
   } catch (e) {
     return fail(e);
@@ -198,7 +198,7 @@ export async function saveTrade(_: ActionState, form: FormData): Promise<ActionS
     const raw = fd(form);
     const id = raw.id ? Number(raw.id) : null;
     const v = tradeSchema.parse(raw);
-    const a = db.select().from(schema.accounts).where(eq(schema.accounts.id, v.accountId)).get();
+    const a = await db.select().from(schema.accounts).where(eq(schema.accounts.id, v.accountId)).get();
     if (!a) throw new Error("Account not found");
     if (a.stage === "failed" || a.archived) throw new Error("This account is closed. Choose an active account.");
     const mistakes = form.getAll("mistakes").map(String);
@@ -231,10 +231,10 @@ export async function saveTrade(_: ActionState, form: FormData): Promise<ActionS
       const patch: Record<string, unknown> = { ...values };
       if (entryShot) patch.entryShot = entryShot;
       if (exitShot) patch.exitShot = exitShot;
-      db.update(schema.trades).set(patch).where(eq(schema.trades.id, id)).run();
+      await db.update(schema.trades).set(patch).where(eq(schema.trades.id, id)).run();
       return done("Trade updated");
     }
-    db.insert(schema.trades)
+    await db.insert(schema.trades)
       .values({ ...values, phase: a.stage, entryShot: entryShot ?? null, exitShot: exitShot ?? null, createdAt: new Date().toISOString() })
       .run();
     return done("Trade logged");
@@ -244,7 +244,7 @@ export async function saveTrade(_: ActionState, form: FormData): Promise<ActionS
 }
 
 export async function deleteTrade(id: number) {
-  db.delete(schema.trades).where(eq(schema.trades.id, id)).run();
+  await db.delete(schema.trades).where(eq(schema.trades.id, id)).run();
   revalidatePath("/", "layout");
 }
 
@@ -263,15 +263,15 @@ const payoutSchema = z.object({
 export async function requestPayout(_: ActionState, form: FormData): Promise<ActionState> {
   try {
     const v = payoutSchema.parse(fd(form));
-    const a = db.select().from(schema.accounts).where(eq(schema.accounts.id, v.accountId)).get();
+    const a = await db.select().from(schema.accounts).where(eq(schema.accounts.id, v.accountId)).get();
     if (!a || a.stage !== "funded") throw new Error("Payouts can only be requested from a funded account.");
-    const p = db
+    const p = await db
       .insert(schema.payouts)
       .values({ ...v, status: "requested", requestedAmount: +(v.grossProfit * (v.splitPct / 100)).toFixed(2), destination: v.destination ?? null, notes: v.notes ?? null })
       .returning()
       .get();
     // The firm removes the withdrawn profit from the account balance at request time.
-    db.insert(schema.balanceEvents).values({ accountId: a.id, phase: "funded", date: v.requestedAt, type: "payout_withdrawal", amount: -v.grossProfit, payoutId: p.id, note: "Payout request" }).run();
+    await db.insert(schema.balanceEvents).values({ accountId: a.id, phase: "funded", date: v.requestedAt, type: "payout_withdrawal", amount: -v.grossProfit, payoutId: p.id, note: "Payout request" }).run();
     return done("Payout requested");
   } catch (e) {
     return fail(e);
@@ -296,27 +296,27 @@ const progressSchema = z.object({
 export async function progressPayout(_: ActionState, form: FormData): Promise<ActionState> {
   try {
     const v = progressSchema.parse(fd(form));
-    const p = db.select().from(schema.payouts).where(eq(schema.payouts.id, v.id)).get();
+    const p = await db.select().from(schema.payouts).where(eq(schema.payouts.id, v.id)).get();
     if (!p) throw new Error("Payout not found");
     if (v.status === "approved") {
-      db.update(schema.payouts).set({ status: "approved", approvedAt: v.date, approvedAmount: v.amount ?? p.requestedAmount }).where(eq(schema.payouts.id, p.id)).run();
+      await db.update(schema.payouts).set({ status: "approved", approvedAt: v.date, approvedAmount: v.amount ?? p.requestedAmount }).where(eq(schema.payouts.id, p.id)).run();
     } else if (v.status === "rejected") {
-      db.update(schema.payouts).set({ status: "rejected" }).where(eq(schema.payouts.id, p.id)).run();
-      db.delete(schema.balanceEvents).where(and(eq(schema.balanceEvents.payoutId, p.id), eq(schema.balanceEvents.type, "payout_withdrawal"))).run();
+      await db.update(schema.payouts).set({ status: "rejected" }).where(eq(schema.payouts.id, p.id)).run();
+      await db.delete(schema.balanceEvents).where(and(eq(schema.balanceEvents.payoutId, p.id), eq(schema.balanceEvents.type, "payout_withdrawal"))).run();
     } else {
       const received = v.amount ?? p.approvedAmount ?? p.requestedAmount;
       const allocation = { debt: v.allocDebt ?? 0, reserve: v.allocReserve ?? 0, challenge: v.allocChallenge ?? 0, personal: v.allocPersonal ?? 0, other: v.allocOther ?? 0 };
       const net = received + p.feeRefund - (v.fees ?? 0);
       const allocated = allocation.debt + allocation.reserve + allocation.challenge + allocation.personal + allocation.other;
       if (allocated > net + 0.01) throw new Error(`Allocation ($${allocated.toFixed(2)}) exceeds the net amount ($${net.toFixed(2)}).`);
-      db.update(schema.payouts)
+      await db.update(schema.payouts)
         .set({ status: "received", receivedAt: v.date, receivedAmount: received, approvedAmount: p.approvedAmount ?? received, approvedAt: p.approvedAt ?? v.date, fees: v.fees ?? 0, allocation: JSON.stringify(allocation) })
         .where(eq(schema.payouts.id, p.id))
         .run();
       if (allocation.personal > 0 && v.personalAccountId)
-        db.insert(schema.ledger).values({ date: v.date, type: "transfer_to_personal", amount: allocation.personal, accountId: v.personalAccountId, note: `Allocation from payout #${p.id}` }).run();
+        await db.insert(schema.ledger).values({ date: v.date, type: "transfer_to_personal", amount: allocation.personal, accountId: v.personalAccountId, note: `Allocation from payout #${p.id}` }).run();
       if (allocation.debt > 0 && v.debtId)
-        db.insert(schema.ledger).values({ date: v.date, type: "debt_payment", amount: allocation.debt, debtId: v.debtId, note: `Paid from payout #${p.id}` }).run();
+        await db.insert(schema.ledger).values({ date: v.date, type: "debt_payment", amount: allocation.debt, debtId: v.debtId, note: `Paid from payout #${p.id}` }).run();
       // Reserve, challenge and "other" money stays in cash until actually spent (a fee or expense entry).
     }
     return done("Payout updated");
@@ -326,8 +326,8 @@ export async function progressPayout(_: ActionState, form: FormData): Promise<Ac
 }
 
 export async function deletePayout(id: number) {
-  db.delete(schema.balanceEvents).where(eq(schema.balanceEvents.payoutId, id)).run();
-  db.delete(schema.payouts).where(eq(schema.payouts.id, id)).run();
+  await db.delete(schema.balanceEvents).where(eq(schema.balanceEvents.payoutId, id)).run();
+  await db.delete(schema.payouts).where(eq(schema.payouts.id, id)).run();
   revalidatePath("/", "layout");
 }
 
@@ -347,7 +347,7 @@ export async function addLedger(_: ActionState, form: FormData): Promise<ActionS
     const v = ledgerSchema.parse(fd(form));
     if (v.type.startsWith("transfer") && !v.accountId) throw new Error("Choose the personal account for a transfer.");
     if (v.type === "debt_payment" && !v.debtId) throw new Error("Choose which debt this pays.");
-    db.insert(schema.ledger).values({ ...v, accountId: v.accountId ?? null, debtId: v.type === "debt_payment" ? v.debtId! : null, note: v.note ?? null }).run();
+    await db.insert(schema.ledger).values({ ...v, accountId: v.accountId ?? null, debtId: v.type === "debt_payment" ? v.debtId! : null, note: v.note ?? null }).run();
     return done("Entry recorded");
   } catch (e) {
     return fail(e);
@@ -355,7 +355,7 @@ export async function addLedger(_: ActionState, form: FormData): Promise<ActionS
 }
 
 export async function deleteLedger(id: number) {
-  db.delete(schema.ledger).where(eq(schema.ledger.id, id)).run();
+  await db.delete(schema.ledger).where(eq(schema.ledger.id, id)).run();
   revalidatePath("/", "layout");
 }
 
@@ -366,7 +366,7 @@ export async function saveDailyLog(_: ActionState, form: FormData): Promise<Acti
     const raw = fd(form);
     const date = day.parse(raw.date);
     const part = String(raw.part);
-    const existing = db.select().from(schema.dailyLogs).where(eq(schema.dailyLogs.date, date)).get();
+    const existing = await db.select().from(schema.dailyLogs).where(eq(schema.dailyLogs.date, date)).get();
     const s = (k: string) => (raw[k] === undefined ? undefined : String(raw[k]).trim() || null);
     let patch: Partial<typeof schema.dailyLogs.$inferInsert>;
     if (part === "plan") {
@@ -403,8 +403,8 @@ export async function saveDailyLog(_: ActionState, form: FormData): Promise<Acti
         reviewCompletedAt: existing?.reviewCompletedAt ?? nowLocal(),
       };
     }
-    if (existing) db.update(schema.dailyLogs).set(patch).where(eq(schema.dailyLogs.date, date)).run();
-    else db.insert(schema.dailyLogs).values({ date, ...patch }).run();
+    if (existing) await db.update(schema.dailyLogs).set(patch).where(eq(schema.dailyLogs.date, date)).run();
+    else await db.insert(schema.dailyLogs).values({ date, ...patch }).run();
     return done(part === "plan" ? "Plan saved" : "Review saved");
   } catch (e) {
     return fail(e);
@@ -415,11 +415,11 @@ export async function saveDailyLog(_: ActionState, form: FormData): Promise<Acti
 
 export async function updateSettings(patch: Partial<Settings>): Promise<ActionState> {
   try {
-    const next = settingsSchema.parse({ ...getSettings(), ...patch });
+    const next = settingsSchema.parse({ ...(await getSettings()), ...patch });
     const alloc = next.policy.reservePct + next.policy.challengePct + next.policy.personalPct + next.policy.otherPct;
     if (Math.abs(alloc - 100) > 0.01) throw new Error(`Allocation percentages must add up to 100 (currently ${alloc}).`);
     if (next.missionEnd <= next.missionStart) throw new Error("Mission end must be after the start.");
-    saveSettings(next);
+    await saveSettings(next);
     return done("Settings saved");
   } catch (e) {
     return fail(e);
@@ -428,7 +428,7 @@ export async function updateSettings(patch: Partial<Settings>): Promise<ActionSt
 
 export async function resetAllData(confirm: string): Promise<ActionState> {
   if (confirm !== "RESET") return { ok: false, error: 'Type RESET to confirm.' };
-  for (const t of [schema.trades, schema.balanceEvents, schema.payouts, schema.ledger, schema.dailyLogs, schema.accounts, schema.settings]) db.delete(t).run();
+  for (const t of [schema.trades, schema.balanceEvents, schema.payouts, schema.ledger, schema.dailyLogs, schema.accounts, schema.settings]) await db.delete(t).run();
   return done("All data cleared");
 }
 
@@ -447,7 +447,7 @@ export async function completeSetup(input: z.input<typeof setupSchema>): Promise
   try {
     const v = setupSchema.parse(input);
     if (v.passcode && v.passcode.length < 6) throw new Error("Passcode must be at least 6 characters.");
-    const current = getSettings();
+    const current = await getSettings();
     const t = today();
     const next = settingsSchema.parse({
       ...current,
@@ -458,11 +458,11 @@ export async function completeSetup(input: z.input<typeof setupSchema>): Promise
       missionEnd: current.setupCompleted ? current.missionEnd : addMonths(t, 6),
       debts: v.debts.map((d, i) => ({ id: `debt-${Date.now()}-${i}`, ...d })),
     });
-    saveSettings(next);
+    await saveSettings(next);
     if (v.challenge) {
       const tpl = next.templates.find((x) => x.id === v.challenge!.templateId);
       if (!tpl) throw new Error("Unknown challenge template.");
-      const a = db
+      const a = await db
         .insert(schema.accounts)
         .values({
           name: `${tpl.firm} $${tpl.size / 1000}K`, firm: tpl.firm, kind: "prop", size: tpl.size, purchasePrice: v.challenge.price,
@@ -474,7 +474,7 @@ export async function completeSetup(input: z.input<typeof setupSchema>): Promise
         })
         .returning()
         .get();
-      if (v.challenge.price > 0) db.insert(schema.ledger).values({ date: v.challenge.startDate, type: "fee", amount: v.challenge.price, accountId: a.id, note: `${tpl.firm} $${tpl.size.toLocaleString()} challenge fee` }).run();
+      if (v.challenge.price > 0) await db.insert(schema.ledger).values({ date: v.challenge.startDate, type: "fee", amount: v.challenge.price, accountId: a.id, note: `${tpl.firm} $${tpl.size.toLocaleString()} challenge fee` }).run();
     }
     if (v.passcode) await applyPasscode(v.passcode);
     return done("You're set up");
@@ -490,9 +490,9 @@ function addMonths(key: string, n: number): string {
 }
 
 async function applyPasscode(passcode: string) {
-  setPasscode(passcode);
+  await setPasscode(passcode);
   // Keep this device signed in after setting or changing the passcode.
-  (await cookies()).set(COOKIE, sessionToken()!, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 60 });
+  (await cookies()).set(COOKIE, (await sessionToken())!, { httpOnly: true, sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 60 });
 }
 
 export async function changePasscode(_: ActionState, form: FormData): Promise<ActionState> {
@@ -500,7 +500,7 @@ export async function changePasscode(_: ActionState, form: FormData): Promise<Ac
     const current = String(form.get("current") ?? "");
     const next = String(form.get("next") ?? "");
     const confirm = String(form.get("confirm") ?? "");
-    if (hasPasscode() && !verifyPasscode(current)) return { ok: false, error: "Current passcode is incorrect.", fieldErrors: { current: "Incorrect" } };
+    if ((await hasPasscode()) && !(await verifyPasscode(current))) return { ok: false, error: "Current passcode is incorrect.", fieldErrors: { current: "Incorrect" } };
     if (next.length < 6) return { ok: false, error: "Use at least 6 characters.", fieldErrors: { next: "At least 6 characters" } };
     if (next !== confirm) return { ok: false, error: "Passcodes don't match.", fieldErrors: { confirm: "Doesn't match" } };
     await applyPasscode(next);

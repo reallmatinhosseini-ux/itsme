@@ -27,8 +27,8 @@ const themeInit = `try{var t=localStorage.getItem('theme');if(t==='light')docume
 
 export const dynamic = "force-dynamic";
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const m = loadMission();
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const m = await loadMission();
   const summary = {
     goalPct: m.clock.goalPct,
     timePct: m.clock.timePct,
